@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAI 이미지 자동 분류기 (Final v2)</title>
+    <!-- JSZip 라이브러리 (필수) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        /* 이전 디자인 유지 */
+        :root { --primary-color: #5c6bc0; --secondary-color: #eceff1; --success-color: #66bb6a; --error-color: #ef5350; --text-color: #37474f; --border-radius: 12px; }
+        body { font-family: 'Pretendard', 'Malgun Gothic', sans-serif; line-height: 1.6; color: var(--text-color); background: #f0f2f5; margin: 0; padding: 30px 20px; }
+        .container { max-width: 950px; margin: 0 auto; background: #fff; padding: 40px; border-radius: var(--border-radius); box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        h1 { text-align: center; color: var(--primary-color); margin-bottom: 5px; letter-spacing: -1px; }
+        .credit { text-align: center; font-size: 0.9em; color: #78909c; margin-bottom: 30px; }
+        .guide-box { background: #e8eaf6; border: 1px solid #c5cae9; padding: 20px; border-radius: var(--border-radius); margin-bottom: 35px; font-size: 0.95em; color: #3f51b5; }
+        .guide-box h3 { margin-top: 0; margin-bottom: 10px; } .guide-box ol { margin: 0; padding-left: 25px; } .guide-box li { margin-bottom: 8px; }
+        .guide-highlight { font-weight: bold; color: #1a237e; background: #fff; padding: 2px 6px; border-radius: 4px; }
+        h2 { border-left: 5px solid var(--primary-color); padding-left: 15px; margin-top: 40px; margin-bottom: 20px; color: #455a64; }
+        .sub-text { font-size: 0.9em; color: #90a4ae; margin-bottom: 15px; }
+        .rule-container { display: flex; flex-direction: column; gap: 12px; }
+        .rule-row { display: flex; gap: 10px; align-items: flex-start; background: #fafafa; padding: 12px; border-radius: 8px; border: 1px solid #eee; }
+        .rule-row textarea { flex-grow: 2; height: 50px; resize: vertical; border: 1px solid #cfd8dc; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 0.95em; }
+        .rule-row input.name-input { flex-grow: 1; border: 1px solid #cfd8dc; border-radius: 6px; padding: 10px; height: 50px; box-sizing: border-box; }
+        .rule-row input.num-input { width: 70px; text-align: center; border: 1px solid #cfd8dc; border-radius: 6px; padding: 10px; height: 50px; box-sizing: border-box; font-weight: bold; }
+        .btn { border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .btn-add { background: var(--success-color); color: white; padding: 10px 20px; margin-top: 12px; display: inline-flex; align-items: center; }
+        .btn-add:hover { background: #43a047; transform: translateY(-2px); }
+        .btn-del { background: var(--error-color); color: white; padding: 0 15px; height: 50px; font-size: 1.2em; }
+        #drop-zone { border: 3px dashed #cfd8dc; border-radius: var(--border-radius); padding: 60px 30px; text-align: center; color: #b0bec5; background: #fafafa; transition: all 0.3s; cursor: pointer; }
+        #drop-zone.dragover { border-color: var(--primary-color); background: #e8eaf6; color: var(--primary-color); }
+        .drop-message { font-size: 1.3em; font-weight: bold; margin-bottom: 10px; }
+        #file-input { display: none; }
+        #action-section { text-align: center; margin-top: 30px; display: none; background: #f5f5f5; padding: 20px; border-radius: var(--border-radius); }
+        #file-count-info { font-weight: bold; color: var(--primary-color); margin-bottom: 15px; }
+        #start-btn { background: var(--primary-color); color: white; font-size: 1.3em; padding: 15px 50px; box-shadow: 0 4px 15px rgba(92, 107, 192, 0.3); }
+        #start-btn:hover { background: #3f51b5; transform: translateY(-2px); }
+        #start-btn:disabled { background: #b0bec5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .debug-label { display: inline-flex; align-items: center; background: #fff3e0; padding: 8px 15px; border-radius: 20px; border: 1px solid #ffe0b2; color: #e65100; font-size: 0.9em; cursor: pointer; }
+        #progress-container { margin-top: 25px; display: none; }
+        #progress-bar-wrapper { background: #eceff1; border-radius: 10px; overflow: hidden; height: 24px; }
+        #progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary-color), #7986cb); color: white; text-align: center; line-height: 24px; transition: width 0.3s; }
+        #log-box { margin-top: 25px; height: 300px; overflow-y: auto; background: #263238; color: #eceff1; padding: 20px; border-radius: 8px; font-family: 'D2Coding', monospace; font-size: 0.9em; white-space: pre-wrap; word-break: break-all; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        .log-success { color: #66bb6a; } .log-error { color: #ef5350; }
+        .log-debug { color: #ffd54f; font-weight: bold; border-bottom: 1px dashed #ffd54f; padding-bottom: 5px; margin: 15px 0 5px 0; display: block; }
+        #download-section { text-align: center; margin-top: 40px; display: none; animation: popIn 0.5s; }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        .download-btn { display: inline-block; background: #ab47bc; color: white; padding: 18px 60px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 1.4em; box-shadow: 0 5px 20px rgba(171, 71, 188, 0.4); transition: all 0.3s; }
+        .download-btn:hover { background: #8e24aa; transform: translateY(-3px); box-shadow: 0 8px 25px rgba(171, 71, 188, 0.5); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>NAI 이미지 자동 분류기 (R2 업로드용)</h1>
+
+    <div class="guide-box">
+        <h3>📖 사용 가이드</h3>
+        <ol>
+            <li><strong>규칙 설정:</strong> 캐릭터별로, 구분할 핵심 태그를 쉼표(,)로 구분해 적으세요. 그 후 옆에 캐릭터의 이름을 적으세요 (예: <span class="guide-highlight"> navy blue hair, glitch, </span> | <span class="guide-highlight"> 하와</span>). 2번에는 상황을 구분할 핵심 태그를 쉼표(,)로 구분해 적으세요. 그 후 옆에 대응되는 상황을 적고, 원하는 숫자코드를 적으세요.  (예: <span class="guide-highlight"> glad, opened mouth, </span> | <span class="guide-highlight"> 기쁨 </span>|  <span class="guide-highlight"> 1 </span>)</li>
+            <li><strong>주의:</strong> 숫자, 특수문자(::, [], {})는 무시됩니다. 순수 알파벳 키워드만 사용하세요.</li>
+            <li><strong>이미지 투하 & 실행:</strong> 이미지를 드래그하고 시작 버튼을 누르세요.</li>
+            <li>안 되면 <strong>🔍 디버그 모드</strong>를 켜서 로그를 확인하고 규칙을 수정하세요.</li>
+        </ol>
+    </div>
+
+    <!-- [1] 설정 구역: 캐릭터 -->
+    <div class="rule-section">
+        <h2>1️⃣ 캐릭터 식별 규칙 (위에서부터 순서대로 적용)</h2>
+        <div id="char-rules-container" class="rule-container"></div>
+        <button class="btn btn-add" onclick="addCharRuleRow()">+ 캐릭터 슬롯 추가</button>
+    </div>
+
+    <!-- [2] 설정 구역: 감정/상황 -->
+    <div class="rule-section">
+        <h2>2️⃣ 감정/상황 식별 규칙 (위에서부터 순서대로 적용)</h2>
+        <div id="emotion-rules-container" class="rule-container"></div>
+        <button class="btn btn-add" onclick="addEmotionRuleRow()">+ 감정/상황 슬롯 추가</button>
+    </div>
+
+    <!-- [3] 파일 드롭 구역 -->
+    <h2>3️⃣ 이미지 파일 투하</h2>
+    <div id="drop-zone">
+        <p class="drop-message">여기를 클릭하거나, 이미지 파일들을 드래그하세요!</p>
+        <input type="file" id="file-input" multiple accept="image/png">
+    </div>
+
+    <!-- 실행 및 상태 표시 -->
+    <div id="action-section">
+        <p id="file-count-info">준비 완료!</p>
+        <label class="debug-label">
+            <input type="checkbox" id="debug-mode-chk" checked>
+            🔍 디버그 모드 (체크 권장: 매칭에 사용된 실제 텍스트를 보여줍니다)
+        </label>
+        <br><br>
+        <button id="start-btn" class="btn" onclick="startProcessing()">⚡ 처리 시작</button>
+    </div>
+
+    <div id="progress-container">
+        <div id="progress-bar-wrapper"><div id="progress-bar">0%</div></div>
+        <p id="progress-text" style="text-align: center; margin-top: 8px;">대기 중...</p>
+    </div>
+
+    <div id="log-box">로그 대기 중... (디버그 모드가 켜져 있습니다)</div>
+
+    <div id="download-section">
+        <p style="font-size: 1.2em; color: var(--success-color); font-weight: bold;">🎉 처리가 완료되었습니다!</p>
+        <a id="download-link" href="#" class="download-btn">📦 ZIP 파일 다운로드</a>
+    </div>
+</div>
+
+<script>
+    // 기본 UI 함수들
+    let selectedFiles = []; const logBox = document.getElementById('log-box'); const progressBar = document.getElementById('progress-bar'); const progressText = document.getElementById('progress-text'); const startBtn = document.getElementById('start-btn'); const debugCheckbox = document.getElementById('debug-mode-chk');
+    function addLog(message, type = 'info') { const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); logBox.innerHTML += `<span class="log-${type}">[${time}] ${message}</span>\n`; logBox.scrollTop = logBox.scrollHeight; }
+    function createDelButton() { const btn = document.createElement('button'); btn.className = 'btn btn-del'; btn.innerHTML = '✖'; btn.onclick = function() { this.parentElement.remove(); }; return btn; }
+    function addCharRuleRow(prompt = '', name = '') { const row = document.createElement('div'); row.className = 'rule-row'; row.innerHTML = `<textarea placeholder="구별 프롬프트 (예: ivory hair, blue eyes)">${prompt}</textarea><input type="text" class="name-input" placeholder="부여할 이름 (예: 이리나)" value="${name}">`; row.appendChild(createDelButton()); document.getElementById('char-rules-container').appendChild(row); }
+    function addEmotionRuleRow(prompt = '', desc = '', num = '') { const row = document.createElement('div'); row.className = 'rule-row'; row.innerHTML = `<textarea placeholder="상황 프롬프트 (예: smile)">${prompt}</textarea><input type="text" class="name-input" placeholder="설명 (선택)" value="${desc}"><input type="text" class="num-input" placeholder="숫자" value="${num}">`; row.appendChild(createDelButton()); document.getElementById('emotion-rules-container').appendChild(row); }
+    window.onload = () => { addCharRuleRow('', ''); addEmotionRuleRow('', '', ''); };
+
+    const dropZone = document.getElementById('drop-zone'); const fileInput = document.getElementById('file-input');
+    dropZone.addEventListener('click', () => fileInput.click()); dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); }); dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover')); dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); }); fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+    function handleFiles(files) { selectedFiles = Array.from(files).filter(f => f.type === 'image/png'); if (selectedFiles.length > 0) { document.getElementById('action-section').style.display = 'block'; document.getElementById('file-count-info').innerHTML = `총 <span style="color: var(--primary-color); font-size: 1.2em;">${selectedFiles.length}</span>개의 PNG 파일이 준비되었습니다.`; addLog(`📂 ${selectedFiles.length}개의 파일이 로드되었습니다.`, 'info'); startBtn.disabled = false; document.getElementById('download-section').style.display = 'none'; } else { addLog('⚠️ PNG 이미지가 없습니다.', 'error'); } }
+
+    // =========================================
+    //  [최종 수정] 초강력 텍스트 세탁기
+    //  JSON 구조를 무시하고 모든 텍스트를 긁어모은 뒤, 알파벳 외에는 전부 제거합니다.
+    // =========================================
+    async function extractCleanPrompt(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const buffer = e.target.result; const dataView = new DataView(buffer); const decoder = new TextDecoder('utf-8');
+                    let offset = 8; let rawMetadata = "";
+                    // 1. PNG 청크에서 텍스트 데이터 무식하게 긁어모으기
+                    while (offset < buffer.byteLength) {
+                        const length = dataView.getUint32(offset); const type = decoder.decode(buffer.slice(offset + 4, offset + 8));
+                        if (type === 'tEXt' || type === 'iTXt') {
+                            const textData = decoder.decode(buffer.slice(offset + 8, offset + 8 + length));
+                            // NAI 관련 데이터가 보이면 일단 다 합침
+                            if (textData.includes('prompt') || textData.includes('Description') || textData.includes('{')) {
+                                rawMetadata += textData + " ";
+                            }
+                        } offset += 12 + length;
+                    }
+                    if (!rawMetadata) { reject('NAI 메타데이터 없음'); return; }
+
+                    // 2. [핵심] 초강력 세탁: 알파벳(a-z, A-Z)과 공백을 제외한 모든 문자(숫자, 기호) 제거
+                    // 예: "2::blue eyes::, -3 bad hands" -> "blue eyes bad hands"
+                    const veryCleanText = rawMetadata.replace(/[^a-zA-Z\s]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+                    
+                    resolve(veryCleanText);
+                } catch (err) { reject('파일 읽기 오류'); }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    // 실행 로직
+    async function startProcessing() {
+        const charRules = []; document.querySelectorAll('#char-rules-container .rule-row').forEach(row => { const prompt = row.querySelector('textarea').value.trim().toLowerCase(); const name = row.querySelector('.name-input').value.trim(); if (prompt && name) charRules.push({ prompt, name }); });
+        const emotionRules = []; document.querySelectorAll('#emotion-rules-container .rule-row').forEach(row => { const prompt = row.querySelector('textarea').value.trim().toLowerCase(); const num = row.querySelector('.num-input').value.trim(); if (prompt && num) emotionRules.push({ prompt, num }); });
+        if (charRules.length === 0 || emotionRules.length === 0) { alert('규칙을 입력해주세요.'); return; }
+
+        startBtn.disabled = true; document.getElementById('progress-container').style.display = 'block'; document.getElementById('download-section').style.display = 'none'; logBox.innerHTML = '';
+        addLog('🚀 처리를 시작합니다...', 'info'); const zip = new JSZip(); let successCount = 0; const isDebug = debugCheckbox.checked;
+
+        for (let i = 0; i < selectedFiles.length; i++) {
+            const file = selectedFiles[i]; progressText.textContent = `처리 중... (${i + 1} / ${selectedFiles.length})`;
+            try {
+                const cleanPrompt = await extractCleanPrompt(file);
+                if (isDebug && i === 0) {
+                     addLog(`\n🔍 [디버그] 첫 번째 파일의 최종 세탁된 데이터:\n(이 안에 규칙 단어가 있어야 합니다)\n----------------------------------`, 'debug');
+                     addLog(`${cleanPrompt}`, 'debug');
+                     addLog(`----------------------------------\n`, 'debug');
+                }
+                const checkMatch = (rulePrompt, targetText) => rulePrompt.split(',').map(s => s.trim()).filter(s => s).every(part => targetText.includes(part));
+                let matchedName = charRules.find(rule => checkMatch(rule.prompt, cleanPrompt))?.name;
+                let matchedNum = emotionRules.find(rule => checkMatch(rule.prompt, cleanPrompt))?.num;
+
+                if (matchedName && matchedNum) {
+                    const newFileName = `${matchedName}${matchedNum}.png`; zip.file(newFileName, file);
+                    addLog(`✅ [성공] ${file.name} → ${newFileName}`, 'success'); successCount++;
+                } else {
+                    let failReason = []; if (!matchedName) failReason.push('캐릭터 불일치'); if (!matchedNum) failReason.push('감정 불일치');
+                    addLog(`⚠️ [스킵] ${file.name} (${failReason.join(', ')})`, 'error');
+                }
+            } catch (error) { addLog(`❌ [오류] ${file.name}: ${error}`, 'error'); }
+            const percent = Math.round(((i + 1) / selectedFiles.length) * 100); progressBar.style.width = `${percent}%`; progressBar.textContent = `${percent}%`; await new Promise(resolve => setTimeout(resolve, 2));
+        }
+        progressText.textContent = '📦 ZIP 압축 중...';
+        if (successCount > 0) {
+            const blob = await zip.generateAsync({type: "blob"}); const downloadLink = document.getElementById('download-link');
+            downloadLink.href = URL.createObjectURL(blob); downloadLink.download = `NAI_sorted_${new Date().getTime()}.zip`;
+            document.getElementById('progress-container').style.display = 'none'; document.getElementById('download-section').style.display = 'block';
+            addLog(`\n🎉 완료! 총 ${successCount}개 성공. 다운로드하세요.`, 'success');
+        } else { progressText.textContent = '실패'; addLog('\n❌ 성공한 파일이 없습니다. 디버그 로그를 확인하고 규칙을 수정하세요.', 'error'); startBtn.disabled = false; }
+    }
+</script>
+</body>
+</html>
